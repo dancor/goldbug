@@ -1,0 +1,11 @@
+goldbug is a database creator and analyzer for go opening positions.
+i'm planning to use it to gather opening statistics from a collection
+on the order of 10k games.  i might add more statistical stuff later.
+i'm currently using SGF files i bought from go4go; i couldn't find a
+good free collection sadly.
+
+for v1
+- convert SGF files into database supporting lookups of the form
+  position -> games where that position occurred
+- my first attempt will be to use Data.Binary on IntMap (Set Int),
+  and create a simple hash for Position -> Int
