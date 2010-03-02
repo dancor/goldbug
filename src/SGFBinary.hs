@@ -11,14 +11,20 @@ import Data.SGF
 instance Binary Figure where
   get = error "Figure get"
   put = error "Figrue put"
--- $(derive makeBinary ''Setup)
-instance Binary (Setup a) where
-  get = error "Setup get"
-  put = error "Setup put"
+
+instance (Binary a, Ord a) => Binary (Setup a) where
+  get = liftM4 Setup get get get get
+  put (Setup b w r p) = put b >> put w >> put r >> put p
+instance (Binary a, Binary b, Binary c, Binary d, Binary e, Ord b) =>
+    Binary (GameNode a b c d e) where
+  get = liftM5 GameNode get get get get get
+  put (GameNode a b c d e) = put a >> put b >> put c >> put d >> put e
+
 -- $(derive makeBinary ''Void)
 instance Binary Void where
   get = error "Void get"
   put = error "Void put"
+
 $(derive makeBinary ''Annotation)
 $(derive makeBinary ''Certainty)
 $(derive makeBinary ''Color)
@@ -30,7 +36,6 @@ $(derive makeBinary ''GameInfoGo)
 $(derive makeBinary ''GameInfoLinesOfAction)
 $(derive makeBinary ''GameInfoOcti)
 $(derive makeBinary ''GameInfoType)
-$(derive makeBinary ''GameNode)
 $(derive makeBinary ''GameResult)
 $(derive makeBinary ''GameTree)
 $(derive makeBinary ''GameType)

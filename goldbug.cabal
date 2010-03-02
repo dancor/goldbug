@@ -5,7 +5,8 @@ license-file:   LICENSE
 author:         dan corson <danl@alum.mit.edu>
 synopsis:       <syn>
 build-type:     Simple
-build-depends:  base, binary, bytestring, containers, derive, random, sgf
+build-depends:  base, binary, bytestring, containers, derive, directory,
+                random, sgf
 
 executable:     goldbug
 main-is:        Main.hs

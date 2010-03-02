@@ -1,1 +1,1 @@
-cab && echo running && goldbug
+cab && echo running && goldbug "$@"
