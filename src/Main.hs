@@ -5,11 +5,13 @@ import Control.Arrow
 import Control.Monad
 import Data.Binary
 import Data.Bits
+import Data.Char
 import Data.Either
 import Data.IntMap (IntMap)
 import Data.IntSet (IntSet)
 import Data.List
 import Data.Maybe
+import Data.Ord
 import Data.SGF
 -- import SGFBinary
 import SGFBinaryColor
@@ -34,6 +36,8 @@ type Db = (IntSet, IntMap (Int, Int))
 
 type Hash = Int
 
+type Mv = (Color, Point)
+
 data Options = Options {
   optDb :: String}
 
@@ -52,9 +56,7 @@ main = do
   case sgfs of
     [] -> do
       db <- loadDb $ optDb opts
-      let
-        gs = gamesWithPos 0 db
-      print $ gs
+      mainLoop [] db
     _ -> do
       db <- doesFileExist (optDb opts) >>= \ r -> if r
         then loadDb $ optDb opts
@@ -63,6 +65,39 @@ main = do
       db' <- foldM (flip dbAddFile) db sgfs
       putStrLn "saving database.."
       encodeFile (optDb opts) $! db'
+
+mainLoop :: [Mv] -> Db -> IO ()
+mainLoop mvs db = do
+  let
+    gs = posInfo (posHash mvs) db
+    tryMove mv = (mv, posInfo (posHash $ mvs ++ [mv]) db)
+    rs = unlines . map (\ (s, r) -> s ++ " " ++ show r) . reverse .
+      sortBy (comparing $ (\ (w, l) -> w + l) . snd) .
+      map (first showMv) $ filter ((/= (0, 0)) . snd)
+      [tryMove (c, (x, y)) | c <- [Black, White], x <- [0..18], y <- [0..18]]
+  putStrLn ""
+  print gs
+  putStr rs
+  nextMv <- readMv <$> getLine
+  mainLoop (mvs ++ [nextMv]) db
+
+showMv :: Mv -> String
+showMv (c, (x, y)) = cS ++ xS ++ yS
+  where
+  cS = case c of
+    Black -> "b"
+    White -> "w"
+  xS = [chr (ord 'A' + fI x + if x >= 8 then 1 else 0)]
+  yS = show (19 - y)
+
+readMv :: String -> Mv
+readMv (cS:xS:yS) = (c, (x, y))
+  where
+  c = case cS of
+    'b' -> Black
+    'w' -> White
+  x = fI $ (\ n -> if n > 8 then n - 1 else n) $ ord xS - ord 'A'
+  y = 19 - read yS
 
 loadDb :: String -> IO Db
 loadDb = (putStrLn "loading database.." >>) . decodeFile
@@ -74,8 +109,8 @@ doArgs header defOpts options = do
     (o, n, []) -> (foldl (flip id) defOpts o, n)
     (_, _, errs) -> error $ concat errs ++ usageInfo header options
 
-gamesWithPos :: Hash -> Db -> (Int, Int)
-gamesWithPos p (_, db) = fromMaybe (0, 0) $ IntMap.lookup p db
+posInfo :: Hash -> Db -> (Int, Int)
+posInfo p (_, db) = fromMaybe (0, 0) $ IntMap.lookup p db
 
 dbAddFile :: String -> Db -> IO Db
 dbAddFile f db = do
@@ -106,7 +141,7 @@ dbAddGame g orig@(gameIdx, posToGame) =
 dbEmpty :: Db
 dbEmpty = (IntSet.empty, IntMap.empty)
 
-gameMoves :: Game -> [(Color, Point)]
+gameMoves :: Game -> [Mv]
 gameMoves g = catMaybes .
   map (sndPullMb . second noPasses . fromJust . move) . rights . map action $
   mainPath t
@@ -133,11 +168,14 @@ mainPath t = (rootLabel t :) $ case subForest t of
   [] -> []
   subT:_ -> mainPath subT
 
-posHashes :: [(Color, Point)] -> [Hash]
+posHash = last . posHashes
+
+posHashes :: [Mv] -> [Hash]
 posHashes = scanl xor 0 .
   map (\ (c, (x, y)) -> zobristHashes !! fI x !! fI y !! fromEnum c)
-  where
-  fI = fromIntegral
+
+fI :: (Integral a, Num b) => a -> b
+fI = fromIntegral
 
 zobristHashes :: [[[Hash]]]
 zobristHashes = stream2d . splitN 2 . randoms $ mkStdGen 26150218091920
