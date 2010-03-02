@@ -2,11 +2,19 @@ goldbug is a database creator and analyzer for go opening positions.
 i'm planning to use it to gather opening statistics from a collection
 on the order of 10k games.  i might add more statistical stuff later.
 
-for v1
-- convert SGF files into database supporting lookups of the form
+current issues with v1
+- game adding is quite slow.  adding ~100 games is taking many minutes.
+i'm not sure if the excess time is mostly
+from sgf handling or the database structure.  i could proflie or
+experiment with a making a very minimal sgf parser..
+there could also be a laziness issue.  also maybe the db is so large
+that putting it all in memory is giving us trouble?
+
+plan for v1 (completed)
+- convert SGF files into database supporting lookus of the form
   position -> games where that position occurred
-- my first attempt will be to use Data.Binary on IntMap (Set Int),
-  and create a simple hash for Position -> Int
+- my first attempt will be to use Data.Binary on IntMap (Int, Int),
+  and create a simple hash for GamePosition -> Int
 
 game collection notes
 - i couldn't find a good free go game collection

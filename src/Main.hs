@@ -12,6 +12,7 @@ import Data.IntSet (IntSet)
 import Data.List
 import Data.Maybe
 import Data.Ord
+import Text.Printf
 import Data.SGF
 -- import SGFBinary
 import SGFBinaryColor
@@ -71,15 +72,26 @@ mainLoop mvs db = do
   let
     gs = posInfo (posHash mvs) db
     tryMove mv = (mv, posInfo (posHash $ mvs ++ [mv]) db)
-    rs = unlines . map (\ (s, r) -> s ++ " " ++ show r) . reverse .
+    rs = unlines .
+      map (\ (s, r) -> s ++ " " ++ showWinLoss r) .
+      reverse .
       sortBy (comparing $ (\ (w, l) -> w + l) . snd) .
-      map (first showMv) $ filter ((/= (0, 0)) . snd)
+      map (first showMv) . filter ((/= (0, 0)) . snd) $
+      filter ((`notElem` mvs) . fst)
       [tryMove (c, (x, y)) | c <- [Black, White], x <- [0..18], y <- [0..18]]
   putStrLn ""
-  print gs
+  putStrLn $ showWinLoss gs
   putStr rs
-  nextMv <- readMv <$> getLine
-  mainLoop (mvs ++ [nextMv]) db
+  nextMvS <- getLine
+  case nextMvS of
+    "q" -> return ()
+    "r" -> mainLoop [] db
+    "u" -> mainLoop (init mvs) db
+    _ -> mainLoop (mvs ++ [readMv nextMvS]) db
+
+showWinLoss :: (Int, Int) -> String
+showWinLoss r@(w, l) = show r ++ " " ++
+  printf "%.2f" (100 * fI w / (fI w + fI l) :: Float)
 
 showMv :: Mv -> String
 showMv (c, (x, y)) = cS ++ xS ++ yS
