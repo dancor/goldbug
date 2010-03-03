@@ -2,6 +2,7 @@ module GBLib where
 
 import Control.Applicative
 import Control.Arrow
+import Control.Monad
 import Data.Binary
 import Data.Binary.Get
 import Data.Bits
@@ -16,6 +17,7 @@ import Text.Printf
 import Data.SGF
 -- import SGFBinary
 import SGFBinaryColor
+import System.FilePath.Glob
 import System.Random
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BSL
@@ -31,8 +33,8 @@ type Hash = Int
 
 type Mv = (Color, Point)
 
-mainLoop :: [Mv] -> Db -> IO ()
-mainLoop mvs db = do
+mainLoop :: String -> [Mv] -> Db -> IO ()
+mainLoop dbF mvs db = do
   let
     gs = posInfo (posHash mvs) db
     tryMove mv = (mv, posInfo (posHash $ mvs ++ [mv]) db)
@@ -49,19 +51,50 @@ mainLoop mvs db = do
   nextMvS <- getLine
   case nextMvS of
     "q" -> return ()
-    "r" -> mainLoop [] db
-    "u" -> mainLoop (init mvs) db
-    _ -> mainLoop (mvs ++ [readMv nextMvS]) db
+    "r" -> mainLoop dbF [] db
+    "u" -> mainLoop dbF (init mvs) db
+    'l':' ':ptnS -> do
+      sgfs <- nub . concat <$> mapM globSane (words ptnS)
+      db' <- dbAddFiles sgfs db
+      saveDb dbF db'
+      mainLoop dbF mvs db'
+    _ -> mainLoop dbF (mvs ++ [readMv nextMvS]) db
+
+-- work nicely with both rooted "/a/*" and non-rooted "a/*" glob patterns
+-- i believe this naive approach introduces some delay (~300ms?), because
+-- globDir underneath computes all unmatched files along the way.  but good
+-- enough for me for now.
+globSane :: String -> IO [String]
+globSane ('/':ptn) = globDir1 (compile ptn) "/"
+globSane ptn = globDir1 (compile ptn) ""
 
 loadDb :: String -> IO Db
 -- loadDb = (putStrLn "loading database.." >>) . decodeFile
 loadDb f = do
   putStrLn "loading database.."
   c <- BSL.readFile f
-  return $! runGet (do
-    v <- get
-    m <- isEmpty
-    m `seq` return v) $! c
+  let
+    db = runGet (do
+      v <- get
+      m <- isEmpty
+      m `seq` return v) $! c
+  putStrLn $ "loaded database (" ++ dbSummary db ++ ")"
+  return db
+
+saveDb :: String -> Db -> IO ()
+saveDb dbF db = do
+  putStrLn $ "saving database (" ++ dbSummary db ++ ").."
+  encodeFile dbF $! db
+
+dbAddFiles :: [String] -> Db -> IO Db
+dbAddFiles sgfs db = do
+  putStrLn $ "adding " ++ show (length sgfs) ++ " sgf files to database.."
+  foldM (flip dbAddFile) db sgfs
+
+dbSummary :: Db -> String
+dbSummary db = show (bWin + wWin) ++ " games"
+  where
+  (bWin, wWin) = posInfo 0 db
 
 dbAddFile :: String -> Db -> IO Db
 dbAddFile f db = do

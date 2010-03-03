@@ -1,6 +1,5 @@
 module Main where
 
-import Control.Monad
 import Data.Binary
 import GBLib
 import System.Console.GetOpt
@@ -22,18 +21,18 @@ options = [
 main :: IO ()
 main = do
   (opts, sgfs) <- doArgs "usage" defOpts options
+  let
+    dbF = optDb opts
   case sgfs of
     [] -> do
       db <- loadDb $ optDb opts
-      mainLoop [] db
+      mainLoop dbF [] db
     _ -> do
-      db <- doesFileExist (optDb opts) >>= \ r -> if r
+      db <- doesFileExist dbF >>= \ r -> if r
         then loadDb $ optDb opts
         else return dbEmpty
-      putStrLn "adding sgf files to database.."
-      db' <- foldM (flip dbAddFile) db sgfs
-      putStrLn "saving database.."
-      encodeFile (optDb opts) $! db'
+      db' <- dbAddFiles sgfs db
+      saveDb dbF db'
 
 doArgs :: String -> c -> [OptDescr (c -> c)] -> IO (c, [String])
 doArgs header defOpts options = do
