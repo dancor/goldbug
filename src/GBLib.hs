@@ -58,7 +58,11 @@ mainLoop dbF mvs db = do
       db' <- dbAddFiles sgfs db
       saveDb dbF db'
       mainLoop dbF mvs db'
-    _ -> mainLoop dbF (mvs ++ [readMv nextMvS]) db
+    _ -> case readMv nextMvS of
+      Just nextMv -> mainLoop dbF (mvs ++ [nextMv]) db
+      Nothing -> do
+        putStrLn "could not parse move"
+        mainLoop dbF mvs db
 
 -- work nicely with both rooted "/a/*" and non-rooted "a/*" glob patterns
 -- i believe this naive approach introduces some delay (~300ms?), because
@@ -138,14 +142,17 @@ showMv (c, (x, y)) = cS ++ xS ++ yS
   xS = [chr (ord 'A' + fI x + if x >= 8 then 1 else 0)]
   yS = show (19 - y)
 
-readMv :: String -> Mv
-readMv (cS:xS:yS) = (c, (x, y))
-  where
-  c = case cS of
-    'b' -> Black
-    'w' -> White
-  x = fI $ (\ n -> if n > 8 then n - 1 else n) $ ord xS - ord 'A'
-  y = 19 - read yS
+readMv :: String -> Maybe Mv
+readMv (cS:xS:yS) = do
+  c <- case cS of
+    'b' -> Just Black
+    'w' -> Just White
+    _ -> Nothing
+  let
+    x = fI $ (\ n -> if n > 8 then n - 1 else n) $ ord xS - ord 'A'
+    y = 19 - read yS
+  Just (c, (x, y))
+readMv _ = Nothing
 
 posInfo :: Hash -> Db -> (Int, Int)
 posInfo p (_, db) = fromMaybe (0, 0) $ IntMap.lookup p db
