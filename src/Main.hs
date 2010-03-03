@@ -26,7 +26,7 @@ main = do
   case sgfs of
     [] -> do
       db <- loadDb $ optDb opts
-      mainLoop dbF [] db
+      mainLoop dbF 0 [] db
     _ -> do
       db <- doesFileExist dbF >>= \ r -> if r
         then loadDb $ optDb opts

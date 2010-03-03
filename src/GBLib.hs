@@ -33,8 +33,8 @@ type Hash = Int
 
 type Mv = (Color, Point)
 
-mainLoop :: String -> [Mv] -> Db -> IO ()
-mainLoop dbF mvs db = do
+mainLoop :: String -> Int -> [Mv] -> Db -> IO ()
+mainLoop dbF reqNGms mvs db = do
   let
     gs = posInfo (posHash mvs) db
     tryMove mv = (mv, posInfo (posHash $ mvs ++ [mv]) db)
@@ -42,27 +42,41 @@ mainLoop dbF mvs db = do
       map (\ (s, r) -> s ++ " " ++ showWinLoss r) .
       reverse .
       sortBy (comparing $ (\ (w, l) -> w + l) . snd) .
-      map (first showMv) . filter ((/= (0, 0)) . snd) $
+      map (first showMv) .
+      filter ((\ (wWin, bWin) -> wWin + bWin >= reqNGms) . snd) .
+      filter ((/= (0, 0)) . snd) $
       filter ((`notElem` mvs) . fst)
       [tryMove (c, (x, y)) | c <- [Black, White], x <- [0..18], y <- [0..18]]
+    wtf = putStrLn "could not parse move" >> mainLoop dbF reqNGms mvs db
   putStrLn ""
   putStrLn $ showWinLoss gs
   putStr rs
   nextMvS <- getLine
   case nextMvS of
     "q" -> return ()
-    "r" -> mainLoop dbF [] db
-    "u" -> mainLoop dbF (init mvs) db
+    "r" -> mainLoop dbF reqNGms [] db
+    "u" -> mainLoop dbF reqNGms (init mvs) db
     'l':' ':ptnS -> do
       sgfs <- nub . concat <$> mapM globSane (words ptnS)
       db' <- dbAddFiles sgfs db
       saveDb dbF db'
-      mainLoop dbF mvs db'
+      mainLoop dbF reqNGms mvs db'
+    'c':' ':reqNGmsS -> case readMb reqNGmsS of
+      Just reqNGms' -> mainLoop dbF reqNGms' mvs db
+      Nothing -> wtf
+    'h':_ -> do
+        putStrLn "q - quit\n\
+\r - reset to empty board\n\
+\u - undo last move\n\
+\l - load more sgf files (space-delimited glob patterns)\n\
+\c - count-cutoff: only show next-moves with at least this many games"
+        mainLoop dbF reqNGms mvs db
     _ -> case readMv nextMvS of
-      Just nextMv -> mainLoop dbF (mvs ++ [nextMv]) db
-      Nothing -> do
-        putStrLn "could not parse move"
-        mainLoop dbF mvs db
+      Just nextMv -> mainLoop dbF reqNGms (mvs ++ [nextMv]) db
+      Nothing -> wtf
+
+readMb :: Read a => String -> Maybe a
+readMb s = fmap fst . listToMaybe $ reads s
 
 -- work nicely with both rooted "/a/*" and non-rooted "a/*" glob patterns
 -- i believe this naive approach introduces some delay (~300ms?), because
