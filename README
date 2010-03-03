@@ -2,13 +2,20 @@ goldbug is a database creator and analyzer for go opening positions.
 i'm planning to use it to gather opening statistics from a collection
 on the order of 10k games.  i might add more statistical stuff later.
 
+todo
+- make command-line sgf loading still enter right into interactive
+  mode after?  esp bc loading takes so long.  maybe an option to not
+  enter interactive mode if you don't want to?  or can just "echo q |"
+
 current issues with v1
-- game adding is quite slow.  adding ~100 games is taking many minutes.
-i'm not sure if the excess time is mostly
-from sgf handling or the database structure.  i could proflie or
-experiment with a making a very minimal sgf parser..
-there could also be a laziness issue.  also maybe the db is so large
-that putting it all in memory is giving us trouble?
+- game adding is quite slow/intensive
+  - i think it also takes inordinately long if you add 100 or more
+    games at once, so maybe a laziness perf issue there
+- db loading is slow
+  - can bang patterns in the db struct help?
+  - maybe a completely different struct?
+  - maybe need to do this part in C actually?  but hard to find a good
+    trade-off of fast vs basically-everything-in-C?
 
 plan for v1 (completed)
 - convert SGF files into database supporting lookus of the form
