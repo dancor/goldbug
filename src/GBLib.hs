@@ -13,9 +13,6 @@ import Data.List
 import Data.Maybe
 import Data.Ord
 import Text.Printf
-import Data.SGF
--- import SGFBinary
-import SGFBinaryColor
 import System.FilePath.Glob
 import System.Random.Mersenne
 import qualified Data.ByteString as BS
@@ -23,14 +20,17 @@ import qualified Data.ByteString.Lazy as BSL
 import qualified Data.IntSet as IntSet
 import qualified Data.Judy as J
 
+import Sgf
+
 -- less important for opening study, but should eventually implement captures
 -- for the position hashing.
+
+-- should eventually make the database consistently 32bit even on 64bit
+-- machines?
 
 type Db = (IntSet, (J.JudyL Int, J.JudyL Int))
 
 type Hash = Word
-
-type Mv = (Color, Point)
 
 -- zobrist hash table
 type Zobs = [[[Hash]]]
@@ -102,8 +102,10 @@ firstM = runKleisli . first . Kleisli
 secondM :: (Monad m) => (a -> m b) -> (c, a) -> m (c, b)
 secondM = runKleisli . second . Kleisli
 
+bothond :: (a -> b) -> (a, a) -> (b, b)
 bothond f (x, y) = (f x, f y)
 
+bothondM :: (Monad m) => (a -> m b) -> (a, a) -> m (b, b)
 bothondM f (x, y) = liftM2 (,) (f x) (f y)
 
 -- todo: something better by modifying judy package?
@@ -136,10 +138,16 @@ dbSummary db = do
 
 dbAddFile :: Zobs -> String -> Db -> IO Db
 dbAddFile z f db = do
-  c <- BS.unpack <$> BS.readFile f
-  case runParser collection () f c of
+  --c <- BS.unpack <$> BS.readFile f
+  c <- readFile f
+  case (parseSgf f c :: Either String [Game]) of
+    Left e -> error e
+    Right games -> foldM (flip $ dbAddGame z) db games
+  {-
+  case parseSgf f c of
     Left e -> error $ show e
     Right (games, _) -> foldM (flip $ dbAddGame z) db games
+  -}
 
 jInsertWith :: (Int -> Int) -> Word -> Int -> J.JudyL Int -> IO ()
 jInsertWith f k v j = do
@@ -203,23 +211,30 @@ posInfo p (_, (bWin, wWin)) = liftM2 (,)
   (fromMaybe 0 <$> J.lookup p wWin)
 
 gameMoves :: Game -> [Mv]
+gameMoves = snd
+{-
 gameMoves g = catMaybes .
   map (sndPullMb . second noPasses . fromJust . move) . rights . map action $
   mainPath t
   where
   TreeGo t = tree g
+-}
 
 gameWinner :: Game -> Color
+gameWinner = fst
+{-
 gameWinner g = c
   where
   Win c _ =
     head . catMaybes . map result . catMaybes . map gameInfo $ mainPath t
   TreeGo t = tree g
+-}
 
 sndPullMb :: (t, Maybe t1) -> Maybe (t, t1)
 sndPullMb (a, Just b) = Just (a, b)
 sndPullMb _ = Nothing
 
+{-
 noPasses :: MoveGo -> Maybe Point
 noPasses Pass = Nothing
 noPasses (Play a) = Just a
@@ -228,6 +243,7 @@ mainPath :: Tree a -> [a]
 mainPath t = (rootLabel t :) $ case subForest t of
   [] -> []
   subT:_ -> mainPath subT
+-}
 
 posHash :: Zobs -> [Mv] -> Hash
 posHash z = last . posHashes z
