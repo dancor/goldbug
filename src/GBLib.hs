@@ -60,8 +60,7 @@ mainLoop z dbF reqNGms mvs db = do
     "u" -> mainLoop z dbF reqNGms (init mvs) db
     'l':' ':ptnS -> do
       sgfs <- nub . concat <$> mapM globSane (words ptnS)
-      db' <- dbAddFiles z sgfs db
-      saveDb dbF db'
+      db' <- dbAddFiles z dbF sgfs db
       mainLoop z dbF reqNGms mvs db'
     'c':' ':reqNGmsS -> case readMb reqNGmsS of
       Just reqNGms' -> mainLoop z dbF reqNGms' mvs db
@@ -126,10 +125,15 @@ saveDb dbF db = do
   putStrLn $ "saving database (" ++ summary ++ ").."
   encodeFile dbF =<< secondM (bothondM jDecode) db
 
-dbAddFiles :: Zobs -> [String] -> Db -> IO Db
-dbAddFiles z sgfs db = do
-  putStrLn $ "adding " ++ show (length sgfs) ++ " sgf files to database.."
-  foldM (flip $ dbAddFile z) db sgfs
+--dbAddFiles :: Zobs -> [String] -> Db -> IO Db
+dbAddFiles z dbF [] db = return db
+dbAddFiles z dbF all@(sgf:sgfs) db = do
+  let l = length all
+  putStrLn $ "adding " ++ show l ++ " sgf files to database.."
+  db' <- dbAddFile z sgf db
+  when (l == 1 || l `mod` 10 == 0) $ saveDb dbF db'
+  dbAddFiles z dbF sgfs db'
+  --foldM (flip $ dbAddFile z) db sgfs
 
 dbSummary :: Db -> IO String
 dbSummary db = do

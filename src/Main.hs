@@ -32,8 +32,8 @@ main = do
       db <- doesFileExist dbF >>= \ r -> if r
         then loadDb $ optDb opts
         else dbEmpty
-      db' <- dbAddFiles z sgfs db
-      saveDb dbF db'
+      dbAddFiles z dbF sgfs db
+      return ()
 
 doArgs :: String -> c -> [OptDescr (c -> c)] -> IO (c, [String])
 doArgs header defOpts options = do
