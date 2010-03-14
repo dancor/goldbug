@@ -8,7 +8,6 @@ import Data.Binary.Get
 import Data.Bits
 import Data.Char
 import Data.Either
-import Data.IntMap (IntMap)
 import Data.IntSet (IntSet)
 import Data.List
 import Data.Maybe
@@ -18,61 +17,64 @@ import Data.SGF
 -- import SGFBinary
 import SGFBinaryColor
 import System.FilePath.Glob
-import System.Random
+import System.Random.Mersenne
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BSL
-import qualified Data.IntMap as IntMap
 import qualified Data.IntSet as IntSet
+import qualified Data.Judy as J
 
 -- less important for opening study, but should eventually implement captures
 -- for the position hashing.
 
-type Db = (IntSet, IntMap (Int, Int))
+type Db = (IntSet, (J.JudyL Int, J.JudyL Int))
 
-type Hash = Int
+type Hash = Word
 
 type Mv = (Color, Point)
 
-mainLoop :: String -> Int -> [Mv] -> Db -> IO ()
-mainLoop dbF reqNGms mvs db = do
+-- zobrist hash table
+type Zobs = [[[Hash]]]
+
+mainLoop :: Zobs -> String -> Int -> [Mv] -> Db -> IO ()
+mainLoop z dbF reqNGms mvs db = do
   let
-    gs = posInfo (posHash mvs) db
-    tryMove mv = (mv, posInfo (posHash $ mvs ++ [mv]) db)
-    rs = unlines .
-      map (\ (s, r) -> s ++ " " ++ showWinLoss r) .
-      reverse .
-      sortBy (comparing $ (\ (w, l) -> w + l) . snd) .
-      map (first showMv) .
-      filter ((\ (wWin, bWin) -> wWin + bWin >= reqNGms) . snd) .
-      filter ((/= (0, 0)) . snd) $
-      filter ((`notElem` mvs) . fst)
-      [tryMove (c, (x, y)) | c <- [Black, White], x <- [0..18], y <- [0..18]]
-    wtf = putStrLn "could not parse move" >> mainLoop dbF reqNGms mvs db
+    tryMove mv = (,) mv <$> posInfo (posHash z $ mvs ++ [mv]) db
+    wtf = putStrLn "could not parse move" >> mainLoop z dbF reqNGms mvs db
+  gs <- posInfo (posHash z mvs) db
+  rs <- unlines .
+    map (\ (s, r) -> s ++ " " ++ showWinLoss r) .
+    reverse .
+    sortBy (comparing $ (\ (w, l) -> w + l) . snd) .
+    map (first showMv) .
+    filter ((\ (wWin, bWin) -> wWin + bWin >= reqNGms) . snd) .
+    filter ((/= (0, 0)) . snd) .
+    filter ((`notElem` mvs) . fst) <$> mapM tryMove
+    [(c, (x, y)) | c <- [Black, White], x <- [0..18], y <- [0..18]]
   putStrLn ""
   putStrLn $ showWinLoss gs
   putStr rs
   nextMvS <- getLine
   case nextMvS of
     "q" -> return ()
-    "r" -> mainLoop dbF reqNGms [] db
-    "u" -> mainLoop dbF reqNGms (init mvs) db
+    "r" -> mainLoop z dbF reqNGms [] db
+    "u" -> mainLoop z dbF reqNGms (init mvs) db
     'l':' ':ptnS -> do
       sgfs <- nub . concat <$> mapM globSane (words ptnS)
-      db' <- dbAddFiles sgfs db
+      db' <- dbAddFiles z sgfs db
       saveDb dbF db'
-      mainLoop dbF reqNGms mvs db'
+      mainLoop z dbF reqNGms mvs db'
     'c':' ':reqNGmsS -> case readMb reqNGmsS of
-      Just reqNGms' -> mainLoop dbF reqNGms' mvs db
+      Just reqNGms' -> mainLoop z dbF reqNGms' mvs db
       Nothing -> wtf
     'h':_ -> do
-        putStrLn "q - quit\n\
+      putStrLn "q - quit\n\
 \r - reset to empty board\n\
 \u - undo last move\n\
 \l - load more sgf files (space-delimited glob patterns)\n\
 \c - count-cutoff: only show next-moves with at least this many games"
-        mainLoop dbF reqNGms mvs db
+      mainLoop z dbF reqNGms mvs db
     _ -> case readMv nextMvS of
-      Just nextMv -> mainLoop dbF reqNGms (mvs ++ [nextMv]) db
+      Just nextMv -> mainLoop z dbF reqNGms (mvs ++ [nextMv]) db
       Nothing -> wtf
 
 readMb :: Read a => String -> Maybe a
@@ -87,61 +89,88 @@ globSane ('/':ptn) = globDir1 (compile ptn) "/"
 globSane ptn = globDir1 (compile ptn) ""
 
 loadDb :: String -> IO Db
--- loadDb = (putStrLn "loading database.." >>) . decodeFile
 loadDb f = do
   putStrLn "loading database.."
-  c <- BSL.readFile f
-  let
-    db = runGet (do
-      v <- get
-      m <- isEmpty
-      m `seq` return v) $! c
-  putStrLn $ "loaded database (" ++ dbSummary db ++ ")"
+  db <- secondM (bothondM jEncode) =<< decodeFile f
+  summary <- dbSummary db
+  putStrLn $ "loaded database (" ++ summary ++ ")"
   return db
+
+firstM :: (Monad m) => (a -> m b) -> (a, c) -> m (b, c)
+firstM = runKleisli . first . Kleisli
+
+secondM :: (Monad m) => (a -> m b) -> (c, a) -> m (c, b)
+secondM = runKleisli . second . Kleisli
+
+bothond f (x, y) = (f x, f y)
+
+bothondM f (x, y) = liftM2 (,) (f x) (f y)
+
+-- todo: something better by modifying judy package?
+-- also, looks like cut and paste job on keys vs elems in judy package?
+-- todo: not just Int?
+jDecode :: J.JudyL Int -> IO [(Word, Int)]
+jDecode j = liftM2 zip (J.keys j) (J.elems j)
+
+jEncode :: [(Word, Int)] -> IO (J.JudyL Int)
+jEncode l = do
+  j <- J.new
+  mapM_ (\ (k, v) -> J.insert k v j) l
+  return j
 
 saveDb :: String -> Db -> IO ()
 saveDb dbF db = do
-  putStrLn $ "saving database (" ++ dbSummary db ++ ").."
-  encodeFile dbF $! db
+  summary <- dbSummary db
+  putStrLn $ "saving database (" ++ summary ++ ").."
+  encodeFile dbF =<< secondM (bothondM jDecode) db
 
-dbAddFiles :: [String] -> Db -> IO Db
-dbAddFiles sgfs db = do
+dbAddFiles :: Zobs -> [String] -> Db -> IO Db
+dbAddFiles z sgfs db = do
   putStrLn $ "adding " ++ show (length sgfs) ++ " sgf files to database.."
-  foldM (flip dbAddFile) db sgfs
+  foldM (flip $ dbAddFile z) db sgfs
 
-dbSummary :: Db -> String
-dbSummary db = show (bWin + wWin) ++ " games"
-  where
-  (bWin, wWin) = posInfo 0 db
+dbSummary :: Db -> IO String
+dbSummary db = do
+  (bWin, wWin) <- posInfo 0 db
+  return $ show (bWin + wWin) ++ " games"
 
-dbAddFile :: String -> Db -> IO Db
-dbAddFile f db = do
+dbAddFile :: Zobs -> String -> Db -> IO Db
+dbAddFile z f db = do
   c <- BS.unpack <$> BS.readFile f
-  --print $ posHashes . gameMoves . head . fst <$> runParser collection () f c
-  return $ case runParser collection () f c of
+  case runParser collection () f c of
     Left e -> error $ show e
-    Right (games, _) -> foldl' (flip dbAddGame) db games
+    Right (games, _) -> foldM (flip $ dbAddGame z) db games
 
-dbAddGame :: Game -> Db -> Db
-dbAddGame g orig@(gameIdx, posToGame) =
+jInsertWith :: (Int -> Int) -> Word -> Int -> J.JudyL Int -> IO ()
+jInsertWith f k v j = do
+  vOldMb <- J.lookup k j
+  let
+    vNew = case vOldMb of
+      Nothing -> v
+      Just vOld -> f vOld
+  J.insert k vNew j
+
+dbAddGame :: Zobs -> Game -> Db -> IO Db
+dbAddGame z g orig@(gameIdx, posToGame) =
   if IntSet.member gH gameIdx
-    then orig
-    else
-      --(IntMap.insert gH g gameIdx, foldr ins posToGame pH)
-      --(IntMap.insert gH (gameWinner g) gameIdx, foldr ins posToGame pH)
-      (IntSet.insert gH gameIdx, foldr ins posToGame pH)
+    then return orig
+    else do
+      (\ j -> mapM_ (\ k -> jInsertWith (+ 1) k 1 j) pH) $ insF posToGame
+      return (IntSet.insert gH gameIdx, posToGame)
   where
-  pH = posHashes $ gameMoves g
+  pH = posHashes z $ gameMoves g
   -- FIXME?: look into why doesn't last work?  sum might be no slower anyway..
   --gH = last pH
-  gH = sum pH
-  ins k = IntMap.insertWith pairAdd k $ case gameWinner g of
-    Black -> (1, 0)
-    White -> (0, 1)
-  pairAdd (a, b) (c, d) = (a + c, b + d)
+  gH = fromIntegral $ sum pH
+  insF = case gameWinner g of
+    Black -> fst
+    White -> snd
 
-dbEmpty :: Db
-dbEmpty = (IntSet.empty, IntMap.empty)
+dbEmpty :: IO Db
+dbEmpty = do
+  j1 <- J.new
+  j2 <- J.new
+  return (IntSet.empty, (j1, j2))
 
 showWinLoss :: (Int, Int) -> String
 showWinLoss r@(w, l) = show r ++ " " ++
@@ -168,8 +197,10 @@ readMv (cS:xS:yS) = do
   Just (c, (x, y))
 readMv _ = Nothing
 
-posInfo :: Hash -> Db -> (Int, Int)
-posInfo p (_, db) = fromMaybe (0, 0) $ IntMap.lookup p db
+posInfo :: Hash -> Db -> IO (Int, Int)
+posInfo p (_, (bWin, wWin)) = liftM2 (,)
+  (fromMaybe 0 <$> J.lookup p bWin)
+  (fromMaybe 0 <$> J.lookup p wWin)
 
 gameMoves :: Game -> [Mv]
 gameMoves g = catMaybes .
@@ -198,17 +229,20 @@ mainPath t = (rootLabel t :) $ case subForest t of
   [] -> []
   subT:_ -> mainPath subT
 
-posHash = last . posHashes
+posHash :: Zobs -> [Mv] -> Hash
+posHash z = last . posHashes z
 
-posHashes :: [Mv] -> [Hash]
-posHashes = scanl xor 0 .
-  map (\ (c, (x, y)) -> zobristHashes !! fI x !! fI y !! fromEnum c)
+posHashes :: Zobs -> [Mv] -> [Hash]
+posHashes z = scanl xor 0 .
+  map (\ (c, (x, y)) -> z !! fI x !! fI y !! fromEnum c)
 
 fI :: (Integral a, Num b) => a -> b
 fI = fromIntegral
 
-zobristHashes :: [[[Hash]]]
-zobristHashes = stream2d . splitN 2 . randoms $ mkStdGen 26150218091920
+zobristHashes :: IO [[[Hash]]]
+zobristHashes = do
+  g <- newMTGen (Just 2457193872)
+  stream2d . splitN 2 <$> randoms g
 
 stream2d :: [a] -> [[a]]
 stream2d s =

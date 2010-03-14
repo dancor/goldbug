@@ -20,18 +20,19 @@ options = [
 
 main :: IO ()
 main = do
+  z <- zobristHashes
   (opts, sgfs) <- doArgs "usage" defOpts options
   let
     dbF = optDb opts
   case sgfs of
     [] -> do
       db <- loadDb $ optDb opts
-      mainLoop dbF 0 [] db
+      mainLoop z dbF 0 [] db
     _ -> do
       db <- doesFileExist dbF >>= \ r -> if r
         then loadDb $ optDb opts
-        else return dbEmpty
-      db' <- dbAddFiles sgfs db
+        else dbEmpty
+      db' <- dbAddFiles z sgfs db
       saveDb dbF db'
 
 doArgs :: String -> c -> [OptDescr (c -> c)] -> IO (c, [String])
