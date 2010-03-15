@@ -12,6 +12,7 @@ import Data.IntSet (IntSet)
 import Data.List
 import Data.Maybe
 import Data.Ord
+import Sgf
 import Text.Printf
 import System.FilePath.Glob
 import System.Random.Mersenne
@@ -19,8 +20,6 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.IntSet as IntSet
 import qualified Data.Judy as J
-
-import Sgf
 
 -- less important for opening study, but should eventually implement captures
 -- for the position hashing.
@@ -181,16 +180,10 @@ dbSummary db = do
 
 dbAddFile :: Zobs -> String -> Db -> IO Db
 dbAddFile z f db = do
-  --c <- BS.unpack <$> BS.readFile f
   c <- readFile f
   case (parseSgf f c :: Either String [Game]) of
     Left e -> error e
     Right games -> foldM (flip $ dbAddGame z) db games
-  {-
-  case parseSgf f c of
-    Left e -> error $ show e
-    Right (games, _) -> foldM (flip $ dbAddGame z) db games
-  -}
 
 jInsertWith :: (Int -> Int) -> Word -> Int -> J.JudyL Int -> IO ()
 jInsertWith f k v j = do
