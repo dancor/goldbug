@@ -131,7 +131,7 @@ dbAddFiles z dbF all@(sgf:sgfs) db = do
   let l = length all
   putStrLn $ "adding " ++ show l ++ " sgf files to database.."
   db' <- dbAddFile z sgf db
-  when (l == 1 || l `mod` 10 == 0) $ saveDb dbF db'
+  when (l == 1 || l `mod` 50 == 0) $ saveDb dbF db'
   dbAddFiles z dbF sgfs db'
   --foldM (flip $ dbAddFile z) db sgfs
 
