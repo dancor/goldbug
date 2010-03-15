@@ -35,23 +35,26 @@ type Hash = Word
 -- zobrist hash table
 type Zobs = [[[Hash]]]
 
+type PosInfo = (Int, Int)
+
 mainLoop :: Zobs -> String -> Int -> [Mv] -> Db -> IO ()
 mainLoop z dbF reqNGms mvs db = do
   let
     tryMove mv = (,) mv <$> posInfo (posHash z $ mvs ++ [mv]) db
-    wtf = putStrLn "could not parse move" >> mainLoop z dbF reqNGms mvs db
+    asYouWere = mainLoop z dbF reqNGms mvs db
+    wtf = putStrLn "could not parse move" >> asYouWere
   gs <- posInfo (posHash z mvs) db
-  rs <- unlines .
-    map (\ (s, r) -> s ++ " " ++ showWinLoss r) .
-    reverse .
-    sortBy (comparing $ (\ (w, l) -> w + l) . snd) .
-    map (first showMv) .
+  possMvs <-
+    reverse . sortBy (comparing $ (\ (w, l) -> w + l) . snd) .
     filter ((\ (wWin, bWin) -> wWin + bWin >= reqNGms) . snd) .
     filter ((/= (0, 0)) . snd) .
     filter ((`notElem` mvs) . fst) <$> mapM tryMove
     [(c, (x, y)) | c <- [Black, White], x <- [0..18], y <- [0..18]]
+  let
+    rs = unlines . map (\ (s, r) -> s ++ " " ++ showPosInfo r) $
+      map (first showMv) possMvs
   putStrLn ""
-  putStrLn $ showWinLoss gs
+  putStrLn $ showPosInfo gs
   putStr rs
   nextMvS <- getLine
   case nextMvS of
@@ -65,16 +68,52 @@ mainLoop z dbF reqNGms mvs db = do
     'c':' ':reqNGmsS -> case readMb reqNGmsS of
       Just reqNGms' -> mainLoop z dbF reqNGms' mvs db
       Nothing -> wtf
+    "b" -> do
+      putStrLn $ case possMvs of
+        [] -> "no moves"
+        _ -> showMv . fst $ bestMove 0.05 possMvs
+      asYouWere
     'h':_ -> do
-      putStrLn "q - quit\n\
+      putStr "q - quit\n\
 \r - reset to empty board\n\
 \u - undo last move\n\
 \l - load more sgf files (space-delimited glob patterns)\n\
-\c - count-cutoff: only show next-moves with at least this many games"
-      mainLoop z dbF reqNGms mvs db
+\c - count-cutoff: only show next-moves with at least this many games\n\
+\b - best-move: most common move not statistically worse than another\n"
+      asYouWere
     _ -> case readMv nextMvS of
       Just nextMv -> mainLoop z dbF reqNGms (mvs ++ [nextMv]) db
       Nothing -> wtf
+
+-- idk if this approach is actually statistically sound
+pval :: Int -> Int -> Int -> Int -> Double
+pval b1 w1 b2 w2 = pvalue $ chiSqVal exp1 b1d exp2 b2d where
+  pvalue chiSq = 2/(1+exp(0.496937*sqrt(chiSq*(chiSq+10.28))))
+  chiSqVal e1 o1 e2 o2 = (e1-o1)^2/e1+(e2-o2)^2/e2
+  exp1 = n1*b/n
+  exp2 = n2*b/n
+  b = b1d + b2d
+  n = n1 + n2
+  n1 = b1d + w1d
+  n2 = b2d + w2d
+  b1d = fI b1
+  b2d = fI b1
+  w1d = fI w2
+  w2d = fI w2
+  fI = fromIntegral
+
+sndMvBetter :: Double -> (Mv, PosInfo) -> (Mv, PosInfo) -> Bool
+sndMvBetter p ((c, _), (b1, w1)) (_, (b2, w2)) =
+  didBetter && pval b1 w1 b2 w2 < p
+  where
+  didBetter = case c of
+    Black -> b2 * (b1 + w1) > b1 * (b2 + w2)
+    White -> b2 * (b1 + w1) < b1 * (b2 + w2)
+
+bestMove :: Double -> [(Mv, PosInfo)] -> (Mv, PosInfo)
+bestMove p (mv:mvs) = if or $ map (sndMvBetter p mv) mvs
+  then bestMove p mvs
+  else mv
 
 readMb :: Read a => String -> Maybe a
 readMb s = fmap fst . listToMaybe $ reads s
@@ -184,8 +223,8 @@ dbEmpty = do
   j2 <- J.new
   return (IntSet.empty, (j1, j2))
 
-showWinLoss :: (Int, Int) -> String
-showWinLoss r@(w, l) = show r ++ " " ++
+showPosInfo :: PosInfo -> String
+showPosInfo r@(w, l) = show r ++ " " ++
   printf "%.2f" (100 * fI w / (fI w + fI l) :: Float)
 
 showMv :: Mv -> String
@@ -205,11 +244,11 @@ readMv (cS:xS:yS) = do
     _ -> Nothing
   let
     x = fI $ (\ n -> if n > 8 then n - 1 else n) $ ord xS - ord 'A'
-    y = 19 - read yS
+  y <- (19 -) <$> readMb yS
   Just (c, (x, y))
 readMv _ = Nothing
 
-posInfo :: Hash -> Db -> IO (Int, Int)
+posInfo :: Hash -> Db -> IO PosInfo
 posInfo p (_, (bWin, wWin)) = liftM2 (,)
   (fromMaybe 0 <$> J.lookup p bWin)
   (fromMaybe 0 <$> J.lookup p wWin)
