@@ -24,16 +24,11 @@ main = do
   (opts, sgfs) <- doArgs "usage" defOpts options
   let
     dbF = optDb opts
-  case sgfs of
-    [] -> do
-      db <- loadDb $ optDb opts
-      mainLoop z dbF 0 [] db
-    _ -> do
-      db <- doesFileExist dbF >>= \ r -> if r
-        then loadDb $ optDb opts
-        else dbEmpty
-      dbAddFiles z dbF sgfs db
-      return ()
+  db <- doesFileExist dbF >>= \ r -> if r
+    then loadDb $ optDb opts
+    else dbEmpty
+  dbAddFiles z dbF sgfs db
+  mainLoop z dbF 0 [] db
 
 doArgs :: String -> c -> [OptDescr (c -> c)] -> IO (c, [String])
 doArgs header defOpts options = do
