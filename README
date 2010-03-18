@@ -10,6 +10,8 @@ try to increase perf further.
 todo
 - maybe an option to not enter interactive mode if you don't want to?
   or can just "echo q |"
+- symmetry normalization?  many early moves are standardized but e.g.
+  the go4go database has, after 1 Q16 D16 2 Q4 D4, both 3 F3 and 3 F17
 
 current issues
 - db loading is way slow (5 min?) for large db (> 10K games)
