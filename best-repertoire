@@ -4,9 +4,9 @@ main line
 1 R16 D17 2 D3 Q4 3 C15 E16 nonpara shusaku
 black only 4
 1 R16 D16 2 Q3 D4 3 F17 C14 4 L17 low face
-      D4 2 D17 Q4 3 C6 low kitty
+      D4 2 D17 Q4 3 C6 <low face>
       Q4 2 D17 C4 3 E4 low down out
-               D4 <low kitty>
+               D4 <low face>
 white only 7
 1 R16 D17 2 Q3 D4 shusaku
           2 Q4 D4 high shusaku
