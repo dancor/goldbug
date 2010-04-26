@@ -3,7 +3,7 @@ nonpara shusaku|1 R16 D17 2 D3 Q4 3 C15 E16
 shusaku|1 R16 D17 2 Q3 D4
 high shusaku|1 R16 D17 2 Q4 D4
 high nonpara shusaku|1 R16 D17 2 D4 Q4
-low face|1 R16 D16 2 Q3 D4 3 F17 C14 4 L17 
+low face|1 R16 D16 2 Q3 D4 3 F17 C14 4 L17
 low down out|1 R16 Q4 2 D17 C4 3 E4
 enclosure|1 Q16 D16 2 R4 D3 3 P3 R10
 enter|1 Q16 D16 2 R4 D3 3 D5 C5
