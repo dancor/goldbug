@@ -2,6 +2,7 @@
 
 module Db (Db(..), addGame, hasGame, empty) where
 
+import Control.Arrow
 import Data.DeriveTH
 import Data.IntMap (IntMap)
 import Data.IntSet (IntSet)
@@ -16,16 +17,18 @@ import Zob
 
 data Db = Db {
   games :: !IntSet,
-  posWins :: IntMap (Int, Int)
+  posWins :: (IntMap Int, IntMap Int)
   }
 
 addGame :: Zob -> Game -> Db -> Db
 addGame zob gm db = db {
   games = IntSet.insert (fromIntegral gmHash) (games db),
-  posWins = foldl' (\ m h -> case winner gm of
-    Black -> IntMap.insertWith (\ _ (b, w) -> (b + 1, w)) h (1, 0) m
-    White -> IntMap.insertWith (\ _ (b, w) -> (b, w + 1)) h (0, 1) m
-    ) (posWins db) (map fromIntegral gmPosHashes)
+  posWins = (case winner gm of
+    Black -> first
+    White -> second)
+    (\ winMap -> foldl' 
+      (\ m h -> IntMap.insertWith (\ _ n -> n + 1) h 1 m) 
+      winMap (map fromIntegral gmPosHashes)) (posWins db)
   }
   where
   gmPosHashes = gameHashes zob gm
@@ -37,6 +40,6 @@ hasGame zob gm db = IntSet.member
   (games db)
 
 empty :: Db
-empty = Db {games = IntSet.empty, posWins = IntMap.empty}
+empty = Db {games = IntSet.empty, posWins = (IntMap.empty, IntMap.empty)}
 
 $(derive makeSerialize ''Db)

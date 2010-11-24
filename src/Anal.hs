@@ -1,6 +1,7 @@
 module Anal where
 
 import Control.Applicative
+import Control.Arrow
 import Data.Maybe
 import Text.Printf
 import qualified Data.IntMap as IntMap
@@ -17,7 +18,9 @@ showPosInfo r@(w, l) = show r ++ " " ++
   printf "%.2f" (100 * fromIntegral w / fromIntegral (w + l) :: Float)
 
 posInfo :: Hash -> Db -> PosInfo
-posInfo h = fromMaybe (0, 0) . IntMap.lookup (fromIntegral h) . posWins
+posInfo h = 
+  first (fromMaybe 0 . IntMap.lookup (fromIntegral h)) .
+  second (fromMaybe 0 . IntMap.lookup (fromIntegral h)) . posWins
 
 -- idk if this approach is actually statistically sound
 pval :: Int -> Int -> Int -> Int -> Double
