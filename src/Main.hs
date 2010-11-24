@@ -31,8 +31,8 @@ main = do
   db <- doesFileExist dbF >>= \ r -> if r
     then loadDb $ optDb opts
     else return Db.empty
-  mainLoop zob dbF 0 [] =<<
-    if null sgfs then return db else dbAddFiles zob dbF sgfs db
+  db' <- if null sgfs then return db else dbAddFiles zob dbF sgfs db
+  unless (optExit opts) $ mainLoop zob dbF 0 [] db'
 
 mainLoop :: Zob -> FilePath -> Int -> [Move] -> Db -> IO ()
 mainLoop zob dbF reqNGms mvs db = do
