@@ -1,17 +1,14 @@
-module Sgf (parseSgf, Point, Mv, Color(..), Game) where
+--module Sgf (parseSgf, Point, Mv, Color(..), Game) where
+module Sgf where
 
 import Control.Applicative
 import Control.Monad
 import Data.Char
 import FUtil
 
-type Point = (Int, Int)
-
-type Mv = (Color, Point)
-
-data Color = Black | White deriving (Enum, Eq, Ord)
-
-type Game = (Color, [Mv])
+import Color
+import Game
+import Move
 
 -- test crappy parsing:
 -- - very specific to my data set
@@ -26,13 +23,13 @@ parseSgf f s = case breakOnSubl "]RE[" s of
     let
       (mvsStr, rest') = break (== ')') . drop 1 $ dropWhile (/= ';') rest
     c <- cRead cCh
-    mvs <- mapM mvRead $ breaks (== ';') mvsStr
-    ((c, mvs):) <$> parseSgf f rest'
+    mvs <- mapM moveRead $ breaks (== ';') mvsStr
+    (Game c mvs :) <$> parseSgf f rest'
 
-mvRead :: String -> Either String Mv
-mvRead (cCh:'[':xCh:yCh:']':[]) =
-  liftM2 (,) (cRead cCh) (liftM2 (,) (xRead xCh) (xRead yCh))
-mvRead s = Left $ "Expected mv but got " ++ s
+moveRead :: String -> Either String Move
+moveRead (cCh:'[':xCh:yCh:']':[]) =
+  liftM2 Move (cRead cCh) $ liftM2 Pt2 (xRead xCh) (xRead yCh)
+moveRead s = Left $ "Expected mv but got " ++ s
 
 cRead :: Char -> Either String Color
 cRead cCh = case cCh of

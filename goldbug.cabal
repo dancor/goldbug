@@ -5,8 +5,8 @@ license-file:   LICENSE
 author:         dan corson <danl@alum.mit.edu>
 synopsis:       <syn>
 build-type:     Simple
-build-depends:  base, binary, bytestring, containers, derive, directory,
-                Glob, mersenne-random, judy, FUtil
+build-depends:  base >= 4, bytestring, cereal, containers, derive, directory,
+                filepath, split, Glob >= 0.5.1, FUtil
 
 executable:     goldbug
 main-is:        Main.hs
