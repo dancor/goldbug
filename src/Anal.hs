@@ -17,11 +17,6 @@ showPosInfo :: PosInfo -> String
 showPosInfo r@(w, l) = show r ++ " " ++
   printf "%.2f" (100 * fromIntegral w / fromIntegral (w + l) :: Float)
 
-posInfo :: Hash -> Db -> PosInfo
-posInfo h = 
-  first (fromMaybe 0 . IntMap.lookup (fromIntegral h)) .
-  second (fromMaybe 0 . IntMap.lookup (fromIntegral h)) . posWins
-
 -- idk if this approach is actually statistically sound
 pval :: Int -> Int -> Int -> Int -> Double
 pval b1 w1 b2 w2 = pvalue $ chiSqVal exp1 b1d exp2 b2d where
