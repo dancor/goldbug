@@ -2,11 +2,6 @@ based on go4go database of 11569 6.5komi games from 2001 to 2010Q1
 
 main line
 1 R16 D17 2 D3 Q4 3 C15 E16 nonpara shusaku
-black only 4
-1 R16 D16 2 Q3 D4 3 F17 C14 4 L17 low face
-      D4 2 D17 Q4 3 C6 <low face>
-      Q4 2 D17 C4 3 E4 low down out
-               D4 <low face>
 white only 7
 1 R16 D17 2 Q3 D4 shusaku
           2 Q4 D4 high shusaku
@@ -15,13 +10,18 @@ white only 7
                     D5 C5 enter
           2 Q3 D4 3 F3 C6 chinese
           2 Q4 D4 3 F3 C6 two star
+black only 4
+1 R16 D16 2 Q3 D4 3 F17 C14 4 L17 low face
+      D4 2 D17 Q4 3 C6 <low face>
+      Q4 2 D17 C4 3 E4 low down out
+               D4 <low face>
 
 for a my-move:
 take the most common move unless a less common
 move does better in a statistically significant
 way (p < 0.05).  repeat same check on that new
 move.  never consider any moves under a certain
-prevalence (116/11569 = 0.1%).
+prevalence (116/11569 = 1%).
 for a they-move:
 consider all moves over the prevalence.
 

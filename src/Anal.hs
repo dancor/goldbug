@@ -11,11 +11,9 @@ import Color
 import Move
 import Zob
 
-type PosInfo = (Int, Int)
-
 showPosInfo :: PosInfo -> String
-showPosInfo r@(w, l) = show r ++ " " ++
-  printf "%.2f" (100 * fromIntegral w / fromIntegral (w + l) :: Float)
+showPosInfo (PosInfo b w) = show (b, w) ++ " " ++ printf "%.2f" 
+  (100 * fromIntegral b / fromIntegral (b + w) :: Float)
 
 -- idk if this approach is actually statistically sound
 pval :: Int -> Int -> Int -> Int -> Double
@@ -34,7 +32,7 @@ pval b1 w1 b2 w2 = pvalue $ chiSqVal exp1 b1d exp2 b2d where
   w2d = fromIntegral w2
 
 sndMoveBetter :: Double -> (Move, PosInfo) -> (Move, PosInfo) -> Bool
-sndMoveBetter p (Move c _, (b1, w1)) (_, (b2, w2)) =
+sndMoveBetter p (Move c _, (PosInfo b1 w1)) (_, (PosInfo b2 w2)) =
   didBetter && pval b1 w1 b2 w2 < p
   where
   didBetter = case c of

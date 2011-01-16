@@ -15,11 +15,11 @@ import qualified Data.Serialize as Ser
 
 import Anal
 import Color
-import Db (Db(..), posInfo)
+import Db (Db(..), Wins, posInfo, PosInfo(..))
+import DbIO
 import Game
 import Move (Move(..), Pt2(..))
 import Opt
-import Sgf
 import Zob
 import qualified Db
 import qualified Move
@@ -27,30 +27,48 @@ import qualified Move
 main :: IO ()
 main = do
   (opts, sgfs) <- doArgs "usage" defOpts options
-  let
-    dbF = optDb opts
-  db <- doesFileExist dbF >>= \ r -> if r
-    then loadDb $ optDb opts
+  let dbPath = optDb opts
+  db <- doesFileExist (dbPath </> gamesFile) >>= \ r -> if r
+    then 
+      loadDb (optDb opts) $ 
+        if null sgfs then [optDbPart opts] else Db.dbPartList
     else return Db.empty
-  db' <- if null sgfs then return db else dbAddFiles zob dbF sgfs db
-  unless (optExit opts) $ mainLoop opts zob dbF 0 [] db'
+  db' <- if null sgfs then return db else dbAddFiles zob dbPath sgfs db
+  unless (optExit opts) $ if optGenTree opts
+    then error "todo" --genTree opts
+    else mainLoop opts zob [] db'
 
-mainLoop :: Options -> Zob -> FilePath -> Int -> [Move] -> Db -> IO ()
-mainLoop opts zob dbF reqNGms mvs db = do
+{-
+genTree opts =
+  if null possMvInfos
+    then []
+    else bestMvHere : genTree 
+  where
+  possMvInfos = getPossMvInfos opts zob ?db? mvs
+  bestMvHere = fst $ bestMove 0.05 possMvInfos
+-}
+
+pTotalGames :: PosInfo -> Int
+pTotalGames (PosInfo b w) = b + w
+
+getPossMvInfos :: Options -> Zob -> Db -> [Move] -> [(Move, PosInfo)]
+getPossMvInfos opts z db mvs = 
+  sortBy (flip . comparing $ pTotalGames . snd) .
+  filter ((>= optReqNGames opts) . pTotalGames . snd) . 
+  filter ((/= PosInfo 0 0) . snd) .
+  map (tryMove z (optDbPart opts) db mvs) $ filter (`notElem` mvs) Move.all
+
+tryMove :: Zob -> Db.DbPart -> Db -> [Move] -> Move -> (Move, PosInfo)
+tryMove z dbPart db mvs mv = 
+  (mv, posInfo dbPart (posHash z $ mvs ++ [mv]) db)
+
+mainLoop :: Options -> Zob -> [Move] -> Db -> IO ()
+mainLoop opts z mvs db = do
   let
-    dbModeFunc = case optDbMode opts of
-      DbWhole -> wholeWins
-      DbHalf -> halfWins
-      DbCorner -> cornerWins
-      DbBigCorner -> bigCornerWins
-    tryMove :: Move -> (Move, PosInfo)
-    tryMove mv = (mv, posInfo (posHash zob $ mvs ++ [mv]) $ dbModeFunc db)
-    asYouWere = mainLoop opts zob dbF reqNGms mvs db
+    asYouWere = mainLoop opts z mvs db
     wtf = putStrLn "could not parse move" >> asYouWere
-    curPosInfo = posInfo (posHash zob mvs) $ dbModeFunc db
-    possMvInfos = sortBy (flip . comparing $ uncurry (+) . snd) .
-      filter ((>= reqNGms) . uncurry (+) . snd) . filter ((/= (0, 0)) . snd) .
-      map tryMove $ filter (`notElem` mvs) Move.all
+    curPosInfo = posInfo (optDbPart opts) (posHash z mvs) db
+    possMvInfos = getPossMvInfos opts z db mvs
     rs = unlines . map (\ (s, r) -> s ++ " " ++ showPosInfo r) $
       map (first Move.pretty) possMvInfos
     bestMvHere = fst $ bestMove 0.05 possMvInfos
@@ -62,18 +80,18 @@ mainLoop opts zob dbF reqNGms mvs db = do
   nextMvS <- getLine
   case nextMvS of
     "q" -> return ()
-    "r" -> mainLoop opts zob dbF reqNGms [] db
-    "u" -> mainLoop opts zob dbF reqNGms (init mvs) db
+    "r" -> mainLoop opts z [] db
+    "u" -> mainLoop opts z (if null mvs then [] else init mvs) db
     'l':' ':ptnS -> do
-      sgfs <- nub . concat <$> mapM globSane (words ptnS)
-      db' <- dbAddFiles zob dbF sgfs db
-      mainLoop opts zob dbF reqNGms mvs db'
-    'c':' ':reqNGmsS -> case readMb reqNGmsS of
-      Just reqNGms' -> mainLoop opts zob dbF reqNGms' mvs db
+      sgfs <- nub . concat <$> mapM namesMatching (words ptnS)
+      db' <- dbAddFiles z (optDb opts) sgfs db
+      mainLoop opts z mvs db'
+    'c':' ':reqNGamesS -> case readMb reqNGamesS of
+      Just g -> mainLoop (opts {optReqNGames = g}) z mvs db
       Nothing -> wtf
     "b" -> case possMvInfos of
       [] -> putStrLn "no moves" >> asYouWere
-      _ -> mainLoop opts zob dbF reqNGms (mvs ++ [bestMvHere]) db
+      _ -> mainLoop opts z (mvs ++ [bestMvHere]) db
     'h':_ -> do
       putStr "q - quit\n\
 \r - reset to empty board\n\
@@ -83,70 +101,8 @@ mainLoop opts zob dbF reqNGms mvs db = do
 \b - best-move: most common move not statistically worse than another\n"
       asYouWere
     _ -> case Move.read nextMvS of
-      Just nextMv -> mainLoop opts zob dbF reqNGms (mvs ++ [nextMv]) db
+      Just nextMv -> mainLoop opts z (mvs ++ [nextMv]) db
       Nothing -> wtf
 
 readMb :: Read a => String -> Maybe a
 readMb s = fmap fst . listToMaybe $ reads s
-
--- work nicely with both rooted "/a/*" and non-rooted "a/*" glob patterns
--- i believe this naive approach introduces some delay (~300ms?), because
--- globDir underneath computes all unmatched files along the way.  but good
--- enough for me for now.
-globSane :: String -> IO [String]
-globSane ('/':ptn) = globDir1 (compile ptn) "/"
-globSane ptn = globDir1 (compile ptn) ""
-
-loadDb :: FilePath -> IO Db
-loadDb f = do
-  putStrLn "loading database.."
-  db <- either error id . Ser.decode <$> BS.readFile f
-  putStrLn $ "loaded database (" ++ dbSummary db ++ ")"
-  return db
-
-saveDb :: String -> Db -> IO ()
-saveDb dbF db = do
-  putStrLn $ "saving database (" ++ dbSummary db ++ ").."
-  BS.writeFile dbF (Ser.encode db)
-
-sequenceM :: (Monad m) => [a -> m a] -> a -> m a
-sequenceM = foldr (>=>) return
-
-actEveryNGens :: (Monad m) => Int -> (a -> m a) -> a -> [a -> m (Int, a)] ->
-  m (Int, a)
-actEveryNGens n act a fs = sequenceM 
-  (intersperse 
-    (\ i@(m, b) -> if m >= n then liftM ((,) 0) $ act b else return i) $
-    map (\ f (m, b) -> liftM (first (m +)) $ f b) fs)
-  (0, a)
-
-dbAddFiles :: Zob -> FilePath -> [FilePath] -> Db -> IO Db
-dbAddFiles zob dbF fs db = do
-  let l = length fs
-  putStrLn $ "adding " ++ show l ++ " sgf files to database.."
-  (lastAdded, db') <- actEveryNGens 1000 (\ d -> saveDb dbF d >> return d) db $
-    zipWith (\ i f -> 
-      (putStr (show i ++ "/" ++ show l ++ ": ") >>) . dbAddFile zob f)
-      [1 ..] fs
-  when (lastAdded > 0) $ saveDb dbF db'
-  return db'
-
-dbSummary :: Db -> String
-dbSummary db = show (uncurry (+) $ posInfo 0 $ wholeWins db) ++ " games"
-
-dbAddFile :: Zob -> FilePath -> Db -> IO (Int, Db)
-dbAddFile zob f db = do
-  putStrLn $ "adding: " ++ f
-  c <- readFile f
-  ((added, skipped), db') <- case parseSgf f c of
-    Left e -> putStrLn ("skipping file with sgf error: " ++ show e) >> 
-      return ((0, 0), db)
-    Right games -> return $ foldr (dbAddGame zob) ((0, 0), db) games
-  when (skipped > 0) .
-    putStrLn $ "skipped " ++ show skipped ++ " game(s) already in db"
-  return (added, db')
-
-dbAddGame :: Zob -> Game -> ((Int, Int), Db) -> ((Int, Int), Db)
-dbAddGame zob gm ((a, s), db) = if Db.hasGame zob gm db
-  then ((a, s + 1), db)
-  else ((a + 1, s), Db.addGame zob gm db)
