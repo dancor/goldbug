@@ -70,30 +70,21 @@ addGame zob gm db = if isPartialLoad db
   wholeHashes = posHashes zob mvs
   halfHashes = concatMap (posHashes zob) [
     filter (\ (Move _ (Pt2 _ y)) -> y <= nMid + 1) mvs,
-    map (\ (Move c (Pt2 x y)) -> Move c (Pt2 x (nMax - y))) $
-      filter (\ (Move _ (Pt2 _ y)) -> y >= nMid - 1) mvs,
-    map (\ (Move c (Pt2 x y)) -> Move c (Pt2 y x)) $
-      filter (\ (Move _ (Pt2 x _)) -> x <= nMid + 1) mvs,
-    map (\ (Move c (Pt2 x y)) -> Move c (Pt2 y (nMax - x))) $
-      filter (\ (Move _ (Pt2 x _)) -> x >= nMid - 1) mvs
+    filter (\ (Move _ (Pt2 _ y)) -> y >= nMid - 1) mvs,
+    filter (\ (Move _ (Pt2 x _)) -> x <= nMid + 1) mvs,
+    filter (\ (Move _ (Pt2 x _)) -> x >= nMid - 1) mvs
     ]
   cornerHashes = concatMap (posHashes zob) [
     filter (\ (Move _ (Pt2 x y)) -> x < nMid && y < nMid) mvs,
-    map (\ (Move c (Pt2 x y)) -> Move c (Pt2 (nMax - x) y)) $
-      filter (\ (Move _ (Pt2 x y)) -> x > nMid && y < nMid) mvs,
-    map (\ (Move c (Pt2 x y)) -> Move c (Pt2 x (nMax - y))) $
-      filter (\ (Move _ (Pt2 x y)) -> x < nMid && y > nMid) mvs,
-    map (\ (Move c (Pt2 x y)) -> Move c (Pt2 (nMax - x) (nMax - y))) $
-      filter (\ (Move _ (Pt2 x y)) -> x > nMid && y > nMid) mvs
+    filter (\ (Move _ (Pt2 x y)) -> x > nMid && y < nMid) mvs,
+    filter (\ (Move _ (Pt2 x y)) -> x < nMid && y > nMid) mvs,
+    filter (\ (Move _ (Pt2 x y)) -> x > nMid && y > nMid) mvs
     ]
   bigCornerHashes = concatMap (posHashes zob) [
     filter (\ (Move _ (Pt2 x y)) -> x < nBig && y < nBig) mvs,
-    map (\ (Move c (Pt2 x y)) -> Move c (Pt2 (nMax - x) y)) $
-      filter (\ (Move _ (Pt2 x y)) -> x > nBig && y < nBig) mvs,
-    map (\ (Move c (Pt2 x y)) -> Move c (Pt2 x (nMax - y))) $
-      filter (\ (Move _ (Pt2 x y)) -> x < nBig && y > nBig) mvs,
-    map (\ (Move c (Pt2 x y)) -> Move c (Pt2 (nMax - x) (nMax - y))) $
-      filter (\ (Move _ (Pt2 x y)) -> x > nBig && y > nBig) mvs
+    filter (\ (Move _ (Pt2 x y)) -> x > nBig && y < nBig) mvs,
+    filter (\ (Move _ (Pt2 x y)) -> x < nBig && y > nBig) mvs,
+    filter (\ (Move _ (Pt2 x y)) -> x > nBig && y > nBig) mvs
     ]
   gmHash = last wholeHashes
 

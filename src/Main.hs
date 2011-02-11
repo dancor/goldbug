@@ -3,6 +3,7 @@ module Main where
 import Control.Applicative
 import Control.Arrow
 import Control.Monad
+import Data.Function
 import Data.List
 import Data.List.Split
 import Data.Maybe
@@ -55,12 +56,14 @@ getPossMvInfos :: Options -> Zob -> Db -> [Move] -> [(Move, PosInfo)]
 getPossMvInfos opts z db mvs = 
   sortBy (flip . comparing $ pTotalGames . snd) .
   filter ((>= optReqNGames opts) . pTotalGames . snd) . 
-  filter ((/= PosInfo 0 0) . snd) .
-  map (tryMove z (optDbPart opts) db mvs) $ filter (`notElem` mvs) Move.all
+  filter ((/= PosInfo 0 0) . snd) $
+  map (tryMove z (optDbPart opts) db mvs) hAndMvs
+  where
+  hAndMvs = nubBy ((==) `on` fst) . map (\ mv -> 
+    (posHash z $ mvs ++ [mv], mv)) $ filter (`notElem` mvs) Move.allOrd
 
-tryMove :: Zob -> Db.DbPart -> Db -> [Move] -> Move -> (Move, PosInfo)
-tryMove z dbPart db mvs mv = 
-  (mv, posInfo dbPart (posHash z $ mvs ++ [mv]) db)
+tryMove :: Zob -> Db.DbPart -> Db -> [Move] -> (Hash, Move) -> (Move, PosInfo)
+tryMove z dbPart db mvs (h, mv) = (mv, posInfo dbPart h db)
 
 mainLoop :: Options -> Zob -> [Move] -> Db -> IO ()
 mainLoop opts z mvs db = do
