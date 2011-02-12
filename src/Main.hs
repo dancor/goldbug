@@ -8,6 +8,7 @@ import Data.List
 import Data.List.Split
 import Data.Maybe
 import Data.Ord
+import Data.Tree
 import System.Directory
 import System.FilePath
 import System.FilePath.Glob
@@ -25,6 +26,9 @@ import Zob
 import qualified Db
 import qualified Move
 
+data TreeMvType = TreeMain | TreeMe | TreeThey
+  deriving Eq
+
 main :: IO ()
 main = do
   (opts, sgfs) <- doArgs "usage" defOpts options
@@ -36,18 +40,31 @@ main = do
     else return Db.empty
   db' <- if null sgfs then return db else dbAddFiles zob dbPath sgfs db
   unless (optExit opts) $ if optGenTree opts
-    then error "todo" --genTree opts
+    then showTree opts zob db []
     else mainLoop opts zob [] db'
 
-{-
-genTree opts =
-  if null possMvInfos
-    then []
-    else bestMvHere : genTree 
+showTree opts z db mvs = putStrLn . drawForestShort $ 
+   genTree opts z db mvs TreeMain
+
+drawForestShort f = unlines . map head . chunk 2 . lines $ drawForest f
+
+genTree :: Options -> Zob -> Db -> [Move] -> TreeMvType -> Forest String
+genTree opts z db mvs treeMvType = if null possMvs
+  then []
+  else
+    case treeMvType of
+      TreeMain -> 
+        Node (pr bMv) (genTree opts z db (mvs ++ [fst bMv]) TreeMain) :
+        map (\ mv -> Node (pr mv) (genTree opts z db (mvs ++ [fst mv]) TreeMe)) 
+        restMvs
+      TreeMe -> [Node (pr bMv) (genTree opts z db (mvs ++ [fst bMv]) TreeThey)]
+      TreeThey -> map (\ mv -> 
+        Node (pr mv) (genTree opts z db (mvs ++ [fst mv]) TreeMe)) possMvs
   where
-  possMvInfos = getPossMvInfos opts zob ?db? mvs
-  bestMvHere = fst $ bestMove 0.05 possMvInfos
--}
+  pr (mv, PosInfo b w) = Move.pretty mv ++ "\t" ++ show (b + w) ++ " " ++ 
+    show (b * 100 `div` (b + w)) ++ "%"
+  possMvs = bestMoves 0.05 $ getPossMvInfos opts z db mvs
+  bMv:restMvs = possMvs
 
 pTotalGames :: PosInfo -> Int
 pTotalGames (PosInfo b w) = b + w
@@ -89,19 +106,21 @@ mainLoop opts z mvs db = do
       sgfs <- nub . concat <$> mapM namesMatching (words ptnS)
       db' <- dbAddFiles z (optDb opts) sgfs db
       mainLoop opts z mvs db'
-    'c':' ':reqNGamesS -> case readMb reqNGamesS of
+    'g':' ':reqNGamesS -> case readMb reqNGamesS of
       Just g -> mainLoop (opts {optReqNGames = g}) z mvs db
       Nothing -> wtf
     "b" -> case possMvInfos of
       [] -> putStrLn "no moves" >> asYouWere
       _ -> mainLoop opts z (mvs ++ [bestMvHere]) db
+    "t" -> showTree opts z db mvs >> asYouWere
     'h':_ -> do
       putStr "q - quit\n\
 \r - reset to empty board\n\
 \u - undo last move\n\
 \l - load more sgf files (space-delimited glob patterns)\n\
-\c - count-cutoff: only show next-moves with at least this many games\n\
-\b - best-move: most common move not statistically worse than another\n"
+\g - game-cutoff: only show next-moves with at least this many games\n\
+\b - best-move: most common move not statistically worse than another\n\
+\t - tree: show tree of best moves and common responses"
       asYouWere
     _ -> case Move.read nextMvS of
       Just nextMv -> mainLoop opts z (mvs ++ [nextMv]) db

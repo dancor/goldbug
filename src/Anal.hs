@@ -43,3 +43,9 @@ bestMove :: Double -> [(Move, PosInfo)] -> (Move, PosInfo)
 bestMove p (mv:mvs) = if or $ map (sndMoveBetter p mv) mvs
   then bestMove p mvs
   else mv
+
+bestMoves :: Double -> [(Move, PosInfo)] -> [(Move, PosInfo)]
+bestMoves p [] = []
+bestMoves p mvs = mv : bestMoves p (filter (/= mv) mvs)
+  where
+  mv = bestMove p mvs
