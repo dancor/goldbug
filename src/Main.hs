@@ -40,11 +40,10 @@ main = do
     else return Db.empty
   db' <- if null sgfs then return db else dbAddFiles zob dbPath sgfs db
   unless (optExit opts) $ if optGenTree opts
-    then showTree opts zob db []
+    then putStrLn $ showTree opts zob db []
     else mainLoop opts zob [] db'
 
-showTree opts z db mvs = putStrLn . drawForestShort $ 
-   genTree opts z db mvs TreeMain
+showTree opts z db mvs = drawForestShort $ genTree opts z db mvs TreeMain
 
 drawForestShort f = unlines . map head . chunk 2 . lines $ drawForest f
 
@@ -112,7 +111,10 @@ mainLoop opts z mvs db = do
     "b" -> case possMvInfos of
       [] -> putStrLn "no moves" >> asYouWere
       _ -> mainLoop opts z (mvs ++ [bestMvHere]) db
-    "t" -> showTree opts z db mvs >> asYouWere
+    't':mbF -> (case mbF of
+      ' ':f -> writeFile f
+      _ -> putStr)
+      ((++ "\n") $ showTree opts z db mvs) >> asYouWere
     'h':_ -> do
       putStr "q - quit\n\
 \r - reset to empty board\n\
