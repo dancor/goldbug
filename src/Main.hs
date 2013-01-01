@@ -45,7 +45,7 @@ main = do
 
 showTree opts z db mvs = drawForestShort $ genTree opts z db mvs TreeMain
 
-drawForestShort f = unlines . map head . chunk 2 . lines $ drawForest f
+drawForestShort f = unlines . map head . chunksOf 2 . lines $ drawForest f
 
 genTree :: Options -> Zob -> Db -> [Move] -> TreeMvType -> Forest String
 genTree opts z db mvs treeMvType = if null possMvs
