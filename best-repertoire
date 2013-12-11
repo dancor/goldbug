@@ -1,29 +1,30 @@
 based on go4go database of 11569 6.5komi games from 2001 to 2010Q1
 
-main line
-1 R16 D17 2 D3 Q4 3 C15 E16 nonpara shusaku
-white only 7
-1 R16 D17 2 Q3 D4 shusaku
-          2 Q4 D4 high shusaku
-          2 D4 Q4 high nonpara shusaku
-1 Q16 D16 2 R4 D3 3 P3 R10 enclosure
-                    D5 C5 enter
-          2 Q3 D4 3 F3 C6 chinese
-          2 Q4 D4 3 F3 C6 two star
-black only 4
-1 R16 D16 2 Q3 D4 3 F17 C14 4 L17 low face
-      D4 2 D17 Q4 3 C6 <low face>
-      Q4 2 D17 C4 3 E4 low down out
-               D4 <low face>
+main line:
+1 R16 D17 2 D3 Q4 3 C15 E16  Nonpara Shusaku
+white only (7):
+1 R16 D17 2 Q3 D4            Shusaku
+          2 Q4 D4            High Shusaku
+          2 D4 Q4            High Nonpara Shusaku
+1 Q16 D16 2 R4 D3 3 P3 R10  Enclosure
+                    D5 C5   Enter
+          2 Q3 D4 3 F3 C6   Chinese
+          2 Q4 D4 3 F3 C6   Two-star
+black only (4):
+1 R16 D16 2 Q3  D4 3 F17 C14 4 L17  Pinwheel
+      D4  2 D17 Q4 3 C6             <Pinwheel>
+      Q4  2 D17 C4 3 E4             Pinwheel-into
+                D4                  <Pinwheel>
 
-for a my-move:
-take the most common move unless a less common
+For a my-move:
+Take the most common move unless a less common
 move does better in a statistically significant
-way (p < 0.05).  repeat same check on that new
-move.  never consider any moves under a certain
+way (p < 0.05). Repeat this check on that new
+move. Never consider any moves under a certain
 prevalence (116/11569 = 1%).
-for a they-move:
-consider all moves over the prevalence.
 
-the opening names are basically my personal made-up mnemonics.  
-i use "nonpara" instead of "diagonal" since "diagonal" also means "kosumi".
+For a they-move:
+Consider all moves over the prevalence.
+
+The opening names are mostly personal made-up mnemonics.
+I use "nonpara" instead of "diagonal" since "diagonal" also means "kosumi".
